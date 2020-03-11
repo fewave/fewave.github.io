@@ -12,19 +12,19 @@
   name: 分类
   icon: "fas fa-stream"
   path: tabs
-  url: categories
+  url: categories.html
 -
   name: "标签"
   icon: "fas fa-tags"
   path: tabs
-  url: tags
+  url: tags.html
 -
   name: "归档"
   path: tabs
-  url: archives
+  url: archives.html
   icon: "fas fa-archive"
 -
   name: "关于我"
   icon: "fas fa-info"
   path: tabs
-  url: about
+  url: about.html

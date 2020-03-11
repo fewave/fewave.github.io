@@ -114,7 +114,7 @@ kramdown:
       line_numbers: true
       start_line: 1
 
-permalink: /posts/:year-:month-:day-:title
+permalink: /posts/:year-:month-:day-:title.html
 
 defaults:
   -
@@ -147,7 +147,7 @@ defaults:
           url: /
         -
           label: 标签
-          url: /tabs/tags/
+          url: /tabs/tags.html
   -
     scope:
       path: categories
@@ -160,7 +160,7 @@ defaults:
           url: /
         -
           label: 分类
-          url: /tabs/categories/
+          url: /tabs/categories.html
   -
     scope:
       path: tabs
