@@ -1,0 +1,309 @@
+I"�G<h2 id="前言">前言</h2>
+<hr />
+
+<h3 id="为什么要用代理">为什么要用代理</h3>
+<p>在网络抓取的过程中，我们经常会遇见很多网站采取了防爬取技术，或者说因为自己采集网站信息的强度和采集速度太大，给对方服务器带去了太多的压力，所以你一直用同一个代理IP爬取这个网页，很有可能IP会被禁止访问网页，所以基本上做爬虫的都躲不过去IP的问题,需要很多的IP来实现自己IP地址的不停切换，达到正常抓取信息的目的。</p>
+
+<h3 id="常用解决办法">常用解决办法</h3>
+<p>使用ip代理池, 使用代理池的代理ip, 隐藏我们的实际ip, 从何起到绕过防爬技术的干扰。<br />
+这里顺便推荐一个githup开源项目<a href="https://github.com/jhao104/proxy_pool">https://github.com/jhao104/proxy_pool</a>:该项目通过采集几个常用免费代理网站的代理ip, 构建自己的代理ip池。<br /></p>
+
+<p><strong>今天我们讲方法不是使用ip代理池, 而是通过Tor(洋葱路由)进行匿名访问目标地址</strong></p>
+
+<h2 id="介绍">介绍</h2>
+<hr />
+<h3 id="什么是tor洋葱路由">什么是Tor(洋葱路由)</h3>
+<p>Tor（The Onion Router）是第二代洋葱路由（onion routing）的一种实现。<br />
+Tor专门防范流量过滤、嗅探分析，让用户免受其害。Tor在由“onion routers”（洋葱）组成的表层网（overlay network）上进行通信，可以实现匿名对外连接、匿名隐藏服务。<br /></p>
+
+<h3 id="代理实现思路">代理实现思路</h3>
+<ol>
+  <li>运行tor</li>
+  <li>在Python中使用Tor作为selenium的代理</li>
+  <li>对一个目标网站发起请求</li>
+  <li>重复步骤2和3</li>
+</ol>
+
+<p><strong>实现代码</strong></p>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+</pre></td><td class="rouge-code"><pre><span class="kn">from</span> <span class="nn">stem</span> <span class="kn">import</span> <span class="n">Signal</span>
+<span class="kn">from</span> <span class="nn">stem.control</span> <span class="kn">import</span> <span class="n">Controller</span>
+<span class="kn">from</span> <span class="nn">selenium</span> <span class="kn">import</span> <span class="n">webdriver</span>
+<span class="kn">from</span> <span class="nn">selenium.webdriver.chrome.options</span> <span class="kn">import</span> <span class="n">Options</span>
+<span class="kn">from</span> <span class="nn">bs4</span> <span class="kn">import</span> <span class="n">BeautifulSoup</span>
+
+<span class="c1"># 通过Tor切换ip
+</span><span class="k">def</span> <span class="nf">switchIP</span><span class="p">():</span>
+	<span class="k">with</span> <span class="n">Controller</span><span class="o">.</span><span class="n">from_port</span><span class="p">(</span><span class="n">port</span> <span class="o">=</span> <span class="mi">9051</span><span class="p">)</span> <span class="k">as</span> <span class="n">controller</span><span class="p">:</span>
+		<span class="n">controller</span><span class="o">.</span><span class="n">authenticate</span><span class="p">()</span>
+		<span class="n">controller</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">Signal</span><span class="o">.</span><span class="n">NEWNYM</span><span class="p">)</span>
+
+<span class="c1"># 获取代理的浏览器
+</span><span class="k">def</span> <span class="nf">get_browser</span><span class="p">(</span><span class="n">PROXY</span> <span class="o">=</span> <span class="bp">None</span><span class="p">):</span>
+	<span class="n">chrome_options</span> <span class="o">=</span> <span class="n">webdriver</span><span class="o">.</span><span class="n">ChromeOptions</span><span class="p">()</span>
+	<span class="k">if</span> <span class="n">PROXY</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+		<span class="n">chrome_options</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'--proxy-server=SOCKS5://{0}'</span><span class="o">.</span><span class="nb">format</span><span class="p">(</span><span class="n">PROXY</span><span class="p">))</span> <span class="c1"># 代理
+</span>	<span class="n">chrome_options</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'blink-settings=imagesEnabled=false'</span><span class="p">)</span> <span class="c1">#不加载图片, 提升速度
+</span>	<span class="n">chrome_options</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'--headless'</span><span class="p">)</span> <span class="c1">#浏览器不提供可视化页面.
+</span>	<span class="n">executable_path</span><span class="o">=</span><span class="s">'/Users/fewave/project/python/demo/chromedriver'</span> <span class="c1">#设置启动驱动
+</span>	<span class="k">return</span> <span class="n">webdriver</span><span class="o">.</span><span class="n">Chrome</span><span class="p">(</span><span class="n">executable_path</span><span class="o">=</span><span class="n">executable_path</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">chrome_options</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+
+	<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+		<span class="n">switchIP</span><span class="p">()</span>
+		<span class="n">browser</span> <span class="o">=</span> <span class="n">get_browser</span><span class="p">(</span><span class="s">'127.0.0.1:9050'</span><span class="p">)</span>
+		<span class="n">browser</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">'https://cip.cc'</span><span class="p">)</span>
+		<span class="n">html</span> <span class="o">=</span> <span class="n">browser</span><span class="o">.</span><span class="n">page_source</span>
+		<span class="n">soup</span> <span class="o">=</span> <span class="n">BeautifulSoup</span><span class="p">(</span><span class="n">html</span><span class="p">,</span> <span class="s">'html.parser'</span><span class="p">)</span>
+		<span class="k">print</span><span class="p">(</span><span class="s">'======第</span><span class="si">%</span><span class="s">d次请求======='</span> <span class="o">%</span> <span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+	    <span class="k">print</span><span class="p">(</span><span class="n">soup</span><span class="o">.</span><span class="n">find_all</span><span class="p">(</span><span class="s">'pre'</span><span class="p">))</span>
+		<span class="n">browser</span><span class="o">.</span><span class="n">quit</span><span class="p">()</span>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">'__main__'</span><span class="p">:</span>
+	<span class="n">main</span><span class="p">()</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h3 id="准备工作">准备工作</h3>
+<p>运行代码前, 还需做一下准备工作:</p>
+<ol>
+  <li>安装Tor, 因为我的本地电脑为mac, 因此直接通过brew安装 <code class="highlighter-rouge">brew install tor</code>, 安装完成后启动Tor服务, <code class="highlighter-rouge">brew services start tor</code></li>
+  <li>下载浏览器驱动, 因为我本地使用的Chrome, 因此可到<a href="https://sites.google.com/a/chromium.org/chromedriver/downloads">https://sites.google.com/a/chromium.org/chromedriver/downloads</a>(需翻墙) 下载对应版本的驱动(驱动版本需与本机浏览器的版本对应)</li>
+  <li>下载python依赖, 可执行命令<code class="highlighter-rouge">pip install selenium stem bs4</code></li>
+  <li>更新torrc文件并重新启动Tor，以便可以向Tor控制器发出请求。在mac上，您可以在<code class="highlighter-rouge">/usr/local/etc/tor</code>中找到torrc.sample文件。通过执行<code class="highlighter-rouge">mv</code>命令,将torrc.sample重命名为torrc
+    <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+</pre></td><td class="rouge-code"><pre>mv /usr/local/etc/tor/torrc.sample /usr/local/etc/tor/torrc
+</pre></td></tr></tbody></table></code></pre></div>    </div>
+    <p>并且将torrc文件中的以下两行取消注释</p>
+    <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+</pre></td><td class="rouge-code"><pre>ControlPort 9051
+CookieAuthentication 1
+</pre></td></tr></tbody></table></code></pre></div>    </div>
+    <p>重启Tor</p>
+    <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+</pre></td><td class="rouge-code"><pre>brew services restart tor
+</pre></td></tr></tbody></table></code></pre></div>    </div>
+    <h3 id="代码介绍">代码介绍</h3>
+  </li>
+</ol>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+</pre></td><td class="rouge-code"><pre><span class="c1"># 通过Tor切换ip
+</span><span class="k">def</span> <span class="nf">switchIP</span><span class="p">():</span>
+	<span class="k">with</span> <span class="n">Controller</span><span class="o">.</span><span class="n">from_port</span><span class="p">(</span><span class="n">port</span> <span class="o">=</span> <span class="mi">9051</span><span class="p">)</span> <span class="k">as</span> <span class="n">controller</span><span class="p">:</span>
+		<span class="n">controller</span><span class="o">.</span><span class="n">authenticate</span><span class="p">()</span>
+		<span class="n">controller</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">Signal</span><span class="o">.</span><span class="n">NEWNYM</span><span class="p">)</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+<p>这个方法让我们切换IP。它向Tor控制器端口发出一个信号(Signal.NEWNYM)，这告诉Tor我们需要一个新的电路来路由流量。这将给我们一个新的exit节点，这意味着我们的流量看起来像是来自另一个IP。</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+</pre></td><td class="rouge-code"><pre><span class="c1"># 获取代理的浏览器
+</span><span class="k">def</span> <span class="nf">get_browser</span><span class="p">(</span><span class="n">PROXY</span> <span class="o">=</span> <span class="bp">None</span><span class="p">):</span>
+	<span class="n">chrome_options</span> <span class="o">=</span> <span class="n">webdriver</span><span class="o">.</span><span class="n">ChromeOptions</span><span class="p">()</span>
+	<span class="k">if</span> <span class="n">PROXY</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+		<span class="n">chrome_options</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'--proxy-server=SOCKS5://{0}'</span><span class="o">.</span><span class="nb">format</span><span class="p">(</span><span class="n">PROXY</span><span class="p">))</span> <span class="c1"># 代理
+</span>	<span class="n">chrome_options</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'blink-settings=imagesEnabled=false'</span><span class="p">)</span> <span class="c1">#不加载图片, 提升速度
+</span>	<span class="n">chrome_options</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s">'--headless'</span><span class="p">)</span> <span class="c1">#浏览器不提供可视化页面.
+</span>	<span class="n">executable_path</span><span class="o">=</span><span class="s">'/Users/fewave/project/python/demo/chromedriver'</span> <span class="c1">#设置启动驱动
+</span>	<span class="k">return</span> <span class="n">webdriver</span><span class="o">.</span><span class="n">Chrome</span><span class="p">(</span><span class="n">executable_path</span><span class="o">=</span><span class="n">executable_path</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">chrome_options</span><span class="p">)</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+<p>该方法将selenium webdriver设置为在无可数化模式下使用Chrome浏览器，并使用Tor作为代理路由我们的请求。这确保了所有对selenium webdriver的请求都经过Tor。</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+</pre></td><td class="rouge-code"><pre><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+	<span class="k">print</span><span class="p">(</span><span class="s">'开始程序'</span><span class="p">)</span>
+	<span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+		<span class="n">switchIP</span><span class="p">()</span>
+		<span class="n">browser</span> <span class="o">=</span> <span class="n">get_browser</span><span class="p">(</span><span class="s">'127.0.0.1:9050'</span><span class="p">)</span>
+		<span class="n">browser</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">'https://cip.cc'</span><span class="p">)</span>
+		<span class="n">html</span> <span class="o">=</span> <span class="n">browser</span><span class="o">.</span><span class="n">page_source</span>
+		<span class="n">soup</span> <span class="o">=</span> <span class="n">BeautifulSoup</span><span class="p">(</span><span class="n">html</span><span class="p">,</span> <span class="s">'html.parser'</span><span class="p">)</span>
+		<span class="k">print</span><span class="p">(</span><span class="s">'======第</span><span class="si">%</span><span class="s">d次请求======='</span> <span class="o">%</span> <span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+		<span class="k">print</span><span class="p">(</span><span class="n">soup</span><span class="o">.</span><span class="n">find_all</span><span class="p">(</span><span class="s">'pre'</span><span class="p">))</span>
+		<span class="n">browser</span><span class="o">.</span><span class="n">quit</span><span class="p">()</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<p>最后这段代码只向<a href="https://cip.cc">https://cip.cc</a>发送一个请求，这样我们就可以通过selenium webdriver检查请求的IP。打印出代理后的ip
+Stem 是基于 Tor 的 Python 控制器库，可以使用 Tor 的控制协议来对 Tor 进程进行脚本处理或者构建。</p>
+
+<h3 id="执行结果">执行结果</h3>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+</pre></td><td class="rouge-code"><pre>======第1次请求=======
+IP	: 23.129.64.187
+地址	: 美国  华盛顿州  西雅图
+运营商	: emeraldonion.org
+
+数据二	: 美国
+
+数据三	: 美国
+
+URL	: http://www.cip.cc/23.129.64.187
+
+======第2次请求=======
+IP	: 109.70.100.20
+地址	: 奥地利  奥地利
+
+数据二	: 奥地利
+
+数据三	: 奥地利
+
+URL	: http://www.cip.cc/109.70.100.20
+
+======第3次请求=======
+IP	: 185.220.101.5
+地址	: 荷兰  北荷兰省  阿姆斯特丹
+运营商	: torservers.net
+
+数据二	: 荷兰
+
+数据三	: 德国
+
+URL	: http://www.cip.cc/185.220.101.5
+
+======第4次请求=======
+IP	: 23.129.64.194
+地址	: 美国  华盛顿州  西雅图
+运营商	: emeraldonion.org
+
+数据二	: 美国
+
+数据三	: 美国
+
+URL	: http://www.cip.cc/23.129.64.194
+
+======第5次请求=======
+IP	: 162.244.81.196
+地址	: 美国  纽约州  纽约
+运营商	: serverroom.net
+
+数据二	: 美国
+
+数据三	: 美国纽约纽约
+
+URL	: http://www.cip.cc/162.244.81.196
+
+</pre></td></tr></tbody></table></code></pre></div></div>
+<p>很明显我们的真实ip已经被隐藏了</p>
+
+<h2 id="总结">总结</h2>
+<hr />
+<p>上述代码通过启动浏览器驱动， 通过浏览器驱动代理Tor, 从而隐藏我们的真实ip。 不过驱动的启动比较慢， 频繁的驱动重启会让网页的爬取效率大打折扣。因此使用上述方法时， 应该尽量减少浏览器驱动的重启次数。<br /></p>
+
+<p><strong>ps:</strong>
+Selenium: 自动化测试工具。它支持各种浏览器，包括 Chrome，Safari，Firefox 等主流界面式浏览器，如果你在这些浏览器里面安装一个 Selenium 的插件，那么便可以方便地实现Web界面的测试。换句话说叫 Selenium 支持这些浏览器驱动。<br />
+Beautiful Soup: 提供一些简单的、python式的函数用来处理导航、搜索、修改分析树等功能。它是一个工具箱，通过解析文档为用户提供需要抓取的数据，因为简单，所以不需要多少代码就可以写出一个完整的应用程序。<br />
+Stem: 是基于 Tor 的 Python 控制器库，可以使用 Tor 的控制协议来对 Tor 进程进行脚本处理或者构建。</p>
+:ET

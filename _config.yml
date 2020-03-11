@@ -8,7 +8,7 @@
 # jekyll-seo-tag settings › https://github.com/jekyll/jekyll-seo-tag/blob/master/docs/usage.md
 #--------------------------
 
-title: Fewave                          # the main title
+title: Fewave | Blog                       # the main title
 
 tagline: 我来了, 我走了.  # it will display as the sub-title
 
@@ -114,7 +114,7 @@ kramdown:
       line_numbers: true
       start_line: 1
 
-permalink: /post-:year-:month-:day-:title.html
+permalink: /posts/:year-:month-:day-:title
 
 defaults:
   -

@@ -1,0 +1,35 @@
+I"�<p>In <a href="https://github.com/cotes2020/jekyll-theme-chirpy/"><strong>Chirpy</strong></a>, the image files of <a href="https://www.favicon-generator.org/about/">Favicons</a> are placed in <code class="highlighter-rouge">assets/img/favicons/</code>. You may need to replace them with your own. So let’s see how to customize these Favicons.</p>
+
+<p>Whit a square image (PNG, JPG or GIF) in hand, open the site <a href="https://www.favicon-generator.org/"><em>Favicon &amp; App Icon Generator</em></a> and upload your original image.</p>
+
+<table>
+  <tbody>
+    <tr>
+      <td>![upload-image]({{ “/assets/img/sample/upload-image.png”</td>
+      <td>relative_url }})</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Click button <kbd>Create Favicon</kbd> and wait a moment for the website to generate the icons of various sizes automatically.</p>
+
+<table>
+  <tbody>
+    <tr>
+      <td>![download-icons]({{ “/assets/img/sample/download-icons.png”</td>
+      <td>relative_url }})</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Download the generated package, unzip and delete the following two from the extracted files:</p>
+
+<ul>
+  <li>browserconfig.xml</li>
+  <li>manifest.json</li>
+</ul>
+
+<p>Now, copy the rest image files (<code class="highlighter-rouge">.PNG</code> and <code class="highlighter-rouge">.ICO</code>) to cover the original one in folder <code class="highlighter-rouge">assets/img/favicons/</code>.</p>
+
+<p>Lastly, don’t forget to rebuild your site so that the icon becomes your custom edition.</p>
+:ET
