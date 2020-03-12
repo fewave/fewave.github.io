@@ -1,3 +1,10 @@
+---
+title: "Python使用Tor作为代理进行网页抓取"
+date: 2019-09-13
+categories: [网络架构]
+tags: [Python, Tor]
+---
+
 ## 前言
 ---
 
@@ -68,7 +75,7 @@ if __name__ == '__main__':
 1. 安装Tor, 因为我的本地电脑为mac, 因此直接通过brew安装 `brew install tor`, 安装完成后启动Tor服务, `brew services start tor`
 2. 下载浏览器驱动, 因为我本地使用的Chrome, 因此可到[https://sites.google.com/a/chromium.org/chromedriver/downloads](https://sites.google.com/a/chromium.org/chromedriver/downloads)(需翻墙) 下载对应版本的驱动(驱动版本需与本机浏览器的版本对应)
 3. 下载python依赖, 可执行命令`pip install selenium stem bs4`
-4. 更新torrc文件并重新启动Tor，以便可以向Tor控制器发出请求。在mac上，您可以在`/usr/local/etc/tor`中找到torrc.sample文件。通过执行`mv`命令,将torrc.sample重命名为torrc 
+4. 更新torrc文件并重新启动Tor，以便可以向Tor控制器发出请求。在mac上，您可以在`/usr/local/etc/tor`中找到torrc.sample文件。通过执行`mv`命令,将torrc.sample重命名为torrc
 ```
 mv /usr/local/etc/tor/torrc.sample /usr/local/etc/tor/torrc
 ```
