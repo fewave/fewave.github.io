@@ -44,7 +44,7 @@ title: 分类
           {% if sub_categories_size > 1 %}categories{% else %}category{% endif %},
         {% endif %}
           {{ top_posts_size }}
-          post{% if top_posts_size > 1 %}s{% endif %}
+          篇
         </span>
       </span>
 

@@ -15,32 +15,32 @@ $(function() {
 
     var year = Math.floor(seconds / 31536000);
     if (year >= 1) {
-      return year + " 年" + (year > 1 ? "s" : "") + " 前";
+      return year + "年前";
     }
 
     var month = Math.floor(seconds / 2592000);
     if (month >= 1) {
-      return month + " 月" + (month > 1 ? "s" : "") + " 前";
+      return month + "月前";
     }
 
     var week = Math.floor(seconds / 604800);
     if (week >= 1) {
-      return week + " 周" + (week > 1 ? "s" : "") + " 前";
+      return week + "周前";
     }
 
     var day = Math.floor(seconds / 86400);
     if (day >= 1) {
-      return day + " 天" + (day > 1 ? "s" : "") + " 前";
+      return day + "天前";
     }
 
     var hour = Math.floor(seconds / 3600);
     if (hour >= 1) {
-      return hour + " 小时" + (hour > 1 ? "s" : "") + " 前";
+      return hour + "小时前";
     }
 
     var minute = Math.floor(seconds / 60);
     if (minute >= 1) {
-      return minute + " 分钟" + (minute > 1 ? "s" : "") + " 前";
+      return minute + "分钟前";
     }
 
     return isLastmod? "刚刚" : "现在";

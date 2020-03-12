@@ -6,9 +6,9 @@
 
 
 panel:
-  lastmod: "Recent Update"
-  trending_tags: "Trending Tags"
-  toc: "Contents"
+  lastmod: "最近更新"
+  trending_tags: "热门标签"
+  toc: "内容"
 
 post:
   relate_posts: "Further Reading"
