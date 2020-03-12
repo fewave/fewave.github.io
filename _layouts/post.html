@@ -23,9 +23,9 @@ layout: default
             {{ page.date | date: site.data.date_format.post }}
             <i class="unloaded">{{ page.date | date_to_xmlschema }}</i>
           </span>
-          {% if page.categories.size > 0 %}on{% endif %}
+          {% if page.categories.size > 0 %}分类:{% endif %}
           {% for category in page.categories %}
-            <a href='{{ site.baseurl }}/categories/{{ category | replace: ' ', '-' | downcase | url_encode }}/'>{{ category }}</a>
+            <a href='{{ site.baseurl }}/categories/{{ category | replace: ' ', '-' | downcase | append: '.html'| url_encode }}'>{{ category }}</a>
             {%- unless forloop.last -%}, {%- endunless -%}
           {% endfor %}
         </div>

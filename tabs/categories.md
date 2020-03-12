@@ -35,7 +35,7 @@ title: 分类
       {% else %}
         <i class="far fa-folder fa-fw"></i>
       {% endif %}
-        <a href="{{ site.baseurl }}/categories/{{ category_name | replace: ' ', '-' | downcase | url_encode }}/">{{ category_name }}</a>
+        <a href="{{ site.baseurl }}/categories/{{ category_name | replace: ' ', '-' | downcase | append: '.html'| url_encode }}">{{ category_name }}</a>
         <!-- content count -->
         {% assign top_posts_size = site.categories[category_name] | size %}
         <span class="text-muted small font-weight-light pl-2">

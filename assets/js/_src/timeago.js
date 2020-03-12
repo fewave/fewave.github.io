@@ -15,35 +15,35 @@ $(function() {
 
     var year = Math.floor(seconds / 31536000);
     if (year >= 1) {
-      return year + " year" + (year > 1 ? "s" : "") + " ago";
+      return year + " 年" + (year > 1 ? "s" : "") + " 前";
     }
 
     var month = Math.floor(seconds / 2592000);
     if (month >= 1) {
-      return month + " month" + (month > 1 ? "s" : "") + " ago";
+      return month + " 月" + (month > 1 ? "s" : "") + " 前";
     }
 
     var week = Math.floor(seconds / 604800);
     if (week >= 1) {
-      return week + " week" + (week > 1 ? "s" : "") + " ago";
+      return week + " 周" + (week > 1 ? "s" : "") + " 前";
     }
 
     var day = Math.floor(seconds / 86400);
     if (day >= 1) {
-      return day + " day" + (day > 1 ? "s" : "") + " ago";
+      return day + " 天" + (day > 1 ? "s" : "") + " 前";
     }
 
     var hour = Math.floor(seconds / 3600);
     if (hour >= 1) {
-      return hour + " hour" + (hour > 1 ? "s" : "") + " ago";
+      return hour + " 小时" + (hour > 1 ? "s" : "") + " 前";
     }
 
     var minute = Math.floor(seconds / 60);
     if (minute >= 1) {
-      return minute + " minute" + (minute > 1 ? "s" : "") + " ago";
+      return minute + " 分钟" + (minute > 1 ? "s" : "") + " 前";
     }
 
-    return (isLastmod? "just" : "Just") + " now";
+    return isLastmod? "刚刚" : "现在";
   }
 
 

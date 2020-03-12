@@ -5,5 +5,5 @@
 #  MIT Licensed
 
 
-tooltip: "%a, %b %e, %Y, %l:%M %p %z"
-post: "%b %e, %Y"
+tooltip: "%Y-%m-%d %H:%M"
+post: "%Y-%m-%d"

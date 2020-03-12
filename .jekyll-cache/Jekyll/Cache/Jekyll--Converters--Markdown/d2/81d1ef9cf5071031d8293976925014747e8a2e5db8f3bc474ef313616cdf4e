@@ -1,0 +1,561 @@
+I"��<blockquote>
+  <p>在分布式系统中，各系统同步访问共同的资源是很常见的。因此我们常常需要协调他们的动作。 如果不同的系统或是同一个系统的不同主机之间共享了一个或一组资源，那么访问这些资源的时候，往往需要互斥来防止彼此干扰来保证一致性，在这种情况下，便需要使用到分布式锁。</p>
+</blockquote>
+
+<p><strong><em>一个好的分布式锁常常需要以下特性:</em></strong></p>
+<ul>
+  <li>可重入</li>
+  <li>同一时间点,只有一个线程持有锁</li>
+  <li>容错性, 当锁节点宕机时, 能及时释放锁</li>
+  <li>高性能</li>
+  <li>无单点问题</li>
+</ul>
+
+<p><img src="resources/BFCA75ABC7CCC71FFD005833F230E664.png" alt="分布式锁.png" /></p>
+
+<h2 id="一-基于数据库的分布式锁">一. 基于数据库的分布式锁</h2>
+<p><img src="resources/3DDC5598A48BA1315E2852A81F3C4A88.jpg" alt="分布式锁流程图-基于数据库分布式锁.jpg" />
+基于数据库的分布式锁, 常用的一种方式是使用表的唯一约束特性。当往数据库中成功插入一条数据时, 代表只获取到锁。将这条数据从数据库中删除，则释放送。</p>
+
+<p><strong>因此需要创建一张锁表</strong></p>
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+</pre></td><td class="rouge-code"><pre><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="nv">`methodLock`</span> <span class="p">(</span>
+  <span class="nv">`id`</span> <span class="nb">int</span><span class="p">(</span><span class="mi">11</span><span class="p">)</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="n">AUTO_INCREMENT</span> <span class="k">COMMENT</span> <span class="s1">'主键'</span><span class="p">,</span>
+  <span class="nv">`method_name`</span> <span class="nb">varchar</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="s1">''</span> <span class="k">COMMENT</span> <span class="s1">'锁定的方法名'</span><span class="p">,</span>
+  <span class="nv">`cust_id`</span> <span class="nb">varchar</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="s1">'客户端唯一编码'</span><span class="p">,</span>
+  <span class="nv">`update_time`</span> <span class="nb">timestamp</span> <span class="k">NOT</span> <span class="k">NULL</span> <span class="k">DEFAULT</span> <span class="k">CURRENT_TIMESTAMP</span> <span class="k">ON</span> <span class="k">UPDATE</span> <span class="k">CURRENT_TIMESTAMP</span> <span class="k">COMMENT</span> <span class="s1">'保存数据时间，自动生成'</span><span class="p">,</span>
+  <span class="k">PRIMARY</span> <span class="k">KEY</span> <span class="p">(</span><span class="nv">`id`</span><span class="p">),</span>
+  <span class="k">UNIQUE</span> <span class="k">KEY</span> <span class="nv">`uidx_method_name`</span> <span class="p">(</span><span class="nv">`method_name `</span><span class="p">)</span> <span class="k">USING</span> <span class="n">BTREE</span>
+<span class="p">)</span>
+ <span class="n">ENGINE</span><span class="o">=</span><span class="n">InnoDB</span> <span class="k">DEFAULT</span> <span class="n">CHARSET</span><span class="o">=</span><span class="n">utf8</span> <span class="k">COMMENT</span><span class="o">=</span><span class="s1">'锁定中的方法'</span><span class="p">;</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<p><strong>添加锁</strong></p>
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+</pre></td><td class="rouge-code"><pre><span class="k">insert</span> <span class="k">into</span> <span class="n">methodLock</span><span class="p">(</span><span class="n">method_name</span><span class="p">,</span><span class="n">cust_id</span><span class="p">)</span> <span class="k">values</span> <span class="p">(</span><span class="err">‘</span><span class="n">method_name</span><span class="err">’</span><span class="p">,</span><span class="err">‘</span><span class="n">cust_id</span><span class="err">’</span><span class="p">)</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+<p>这里cust_id 可以是机器的mac地址+线程编号, 确保一个线程只有唯一的一个编号。<strong><em>通过这个编号， 可以有效的判断是否为锁的创建者，从而进行锁的释放以及重入锁判断</em></strong></p>
+
+<p><strong>释放锁</strong></p>
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+</pre></td><td class="rouge-code"><pre><span class="k">delete</span> <span class="k">from</span> <span class="n">methodLock</span> <span class="k">where</span> <span class="n">method_name</span> <span class="o">=</span><span class="s1">'method_name'</span> <span class="k">and</span> <span class="n">cust_id</span> <span class="o">=</span> <span class="s1">'cust_id'</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+<p><strong>重入锁判断</strong></p>
+<div class="language-sql highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+</pre></td><td class="rouge-code"><pre><span class="k">select</span> <span class="mi">1</span> <span class="k">from</span> <span class="n">methodLock</span> <span class="k">where</span> <span class="n">method_name</span> <span class="o">=</span><span class="s1">'method_name'</span> <span class="k">and</span> <span class="n">cust_id</span> <span class="o">=</span> <span class="s1">'cust_id'</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<p><strong>加锁以及释放锁的代码示例</strong></p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+</pre></td><td class="rouge-code"><pre><span class="cm">/**
+* 获取锁
+*/</span>
+<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">lock</span><span class="o">(</span><span class="nc">String</span> <span class="n">methodName</span><span class="o">){</span>
+    <span class="kt">boolean</span> <span class="n">success</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span>
+    <span class="c1">//获取客户唯一识别码,例如:mac+线程信息</span>
+    <span class="nc">String</span> <span class="n">custId</span> <span class="o">=</span> <span class="n">getCustId</span><span class="o">();</span>
+    <span class="k">try</span><span class="o">{</span>
+        <span class="c1">//添加锁</span>
+       <span class="n">success</span> <span class="o">=</span> <span class="n">insertLock</span><span class="o">(</span><span class="n">methodName</span><span class="o">,</span> <span class="n">custId</span><span class="o">);</span>
+    <span class="o">}</span> <span class="k">catch</span><span class="o">(</span><span class="nc">Exception</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+        <span class="c1">//如添加失败</span>
+    <span class="o">}</span>
+    <span class="k">return</span> <span class="n">success</span><span class="o">;</span>
+<span class="o">}</span>
+
+<span class="cm">/**
+* 释放锁
+*/</span>
+<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">unlock</span><span class="o">(</span><span class="nc">String</span> <span class="n">methodName</span><span class="o">)</span> <span class="o">{</span>
+    <span class="kt">boolean</span> <span class="n">success</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span>
+    <span class="c1">//获取客户唯一识别码,例如:mac+线程信息</span>
+    <span class="nc">String</span> <span class="n">custId</span> <span class="o">=</span> <span class="n">getCustId</span><span class="o">();</span>
+    <span class="k">try</span><span class="o">{</span>
+        <span class="c1">//添加锁</span>
+       <span class="n">success</span> <span class="o">=</span> <span class="n">deleteLock</span><span class="o">(</span><span class="n">methodName</span><span class="o">,</span> <span class="n">custId</span><span class="o">);</span>
+    <span class="o">}</span> <span class="k">catch</span><span class="o">(</span><span class="nc">Exception</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+        <span class="c1">//如添加失败</span>
+    <span class="o">}</span>
+    <span class="k">return</span> <span class="n">success</span><span class="o">;</span>
+<span class="o">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+<p><strong>完整流程</strong></p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+</pre></td><td class="rouge-code"><pre><span class="kd">public</span> <span class="kt">void</span> <span class="nf">test</span><span class="o">()</span> <span class="o">{</span>
+    <span class="nc">String</span> <span class="n">methodName</span> <span class="o">=</span> <span class="s">"methodName"</span><span class="o">;</span>
+    <span class="c1">//判断是否重入锁</span>
+    <span class="k">if</span> <span class="o">(!</span><span class="n">checkReentrantLock</span><span class="o">(</span><span class="n">methodName</span><span class="o">))</span> <span class="o">{</span>
+        <span class="c1">//非重入锁</span>
+        <span class="k">while</span> <span class="o">(!</span><span class="n">lock</span><span class="o">(</span><span class="n">methodName</span><span class="o">))</span> <span class="o">{</span>
+            <span class="c1">//获取锁失败, 则阻塞至获取锁</span>
+            <span class="k">try</span><span class="o">{</span>
+                <span class="nc">Thread</span><span class="o">.</span><span class="na">sleep</span><span class="o">(</span><span class="mi">100</span><span class="o">)</span>
+            <span class="o">}</span> <span class="k">catch</span><span class="o">(</span><span class="nc">Exception</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+            <span class="o">}</span>
+        <span class="o">}</span>
+    <span class="o">}</span>
+    <span class="c1">//TODO 业务处理</span>
+
+    <span class="c1">//释放锁</span>
+    <span class="n">unlock</span><span class="o">(</span><span class="n">methodName</span><span class="o">);</span>
+<span class="o">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<p>以上代码还存在一些问题:</p>
+<ul>
+  <li>没有失效时间。 解决方案:设置一个定时处理, 定期清理过期锁</li>
+  <li>单点问题。 解决方案: 弄几个备份数据库，数据库之前双向同步，一旦挂掉快速切换到备库上</li>
+</ul>
+
+<h2 id="二-基于redis的分布式锁">二. 基于redis的分布式锁</h2>
+<p><img src="resources/02CCB742CF1F9A94501EAF776375AF73.jpg" alt="分布式锁流程图-基于redis分布式锁.jpg" />
+使用redis 的set(String key, String value, String nxxx, String expx, int time)命令</p>
+<ul>
+  <li>第一个为key，我们使用key来当锁，因为key是唯一的。</li>
+  <li>第二个为value，我们传的是custId，这里cust_id 可以是机器的mac地址+线程编号, 确保一个线程只有唯一的一个编号。<strong><em>通过这个编号， 可以有效的判断是否为锁的创建者，从而进行锁的释放以及重入锁判断</em></strong></li>
+  <li>第三个为nxxx，这个参数我们填的是NX，意思是SET IF NOT EXIST，即当key不存在时，我们进行set操作；若key已经存在，则不做任何操作</li>
+  <li>第四个为expx，这个参数我们传的是PX，意思是我们要给这个key加一个过期的设置，具体时间由第五个参数决定。</li>
+  <li>第五个为time，与第四个参数相呼应，代表key的过期时间。</li>
+</ul>
+
+<p><strong>代码示例</strong></p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+</pre></td><td class="rouge-code"><pre><span class="kd">private</span> <span class="kd">static</span> <span class="kd">final</span> <span class="nc">String</span> <span class="no">LOCK_SUCCESS</span> <span class="o">=</span> <span class="s">"OK"</span><span class="o">;</span>
+<span class="kd">private</span> <span class="kd">static</span> <span class="kd">final</span> <span class="nc">String</span> <span class="no">SET_IF_NOT_EXIST</span> <span class="o">=</span> <span class="s">"NX"</span><span class="o">;</span>
+<span class="kd">private</span> <span class="kd">static</span> <span class="kd">final</span> <span class="nc">String</span> <span class="no">SET_WITH_EXPIRE_TIME</span> <span class="o">=</span> <span class="s">"PX"</span><span class="o">;</span>
+<span class="kd">private</span> <span class="kd">static</span> <span class="kd">final</span> <span class="nc">Long</span> <span class="no">RELEASE_SUCCESS</span> <span class="o">=</span> <span class="mi">1L</span><span class="o">;</span>
+
+<span class="c1">// Redis客户端</span>
+<span class="kd">private</span> <span class="nc">Jedis</span> <span class="n">jedis</span><span class="o">;</span>
+
+<span class="cm">/**
+ * 尝试获取分布式锁
+ * @param lockKey 锁
+ * @param expireTime 超期时间
+ * @return 是否获取成功
+ */</span>
+<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">lock</span><span class="o">(</span><span class="nc">String</span> <span class="n">lockKey</span><span class="o">,</span> <span class="kt">int</span> <span class="n">expireTime</span><span class="o">)</span> <span class="o">{</span>
+    <span class="c1">//获取客户唯一识别码,例如:mac+线程信息</span>
+    <span class="nc">String</span> <span class="n">custId</span> <span class="o">=</span> <span class="n">getCustId</span><span class="o">();</span>
+    <span class="nc">String</span> <span class="n">result</span> <span class="o">=</span> <span class="n">jedis</span><span class="o">.</span><span class="na">set</span><span class="o">(</span><span class="n">lockKey</span><span class="o">,</span> <span class="n">custId</span><span class="o">,</span> <span class="no">SET_IF_NOT_EXIST</span><span class="o">,</span> <span class="no">SET_WITH_EXPIRE_TIME</span><span class="o">,</span> <span class="n">expireTime</span><span class="o">);</span>
+
+    <span class="k">if</span> <span class="o">(</span><span class="no">LOCK_SUCCESS</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="n">result</span><span class="o">))</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="kc">true</span><span class="o">;</span>
+    <span class="o">}</span>
+
+    <span class="k">return</span> <span class="kc">false</span><span class="o">;</span>
+<span class="o">}</span>
+
+<span class="cm">/**
+ * 释放分布式锁
+ * @param lockKey 锁
+ * @param requestId 请求标识
+ * @return 是否释放成功
+ */</span>
+<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">unlock</span><span class="o">(</span><span class="nc">String</span> <span class="n">lockKey</span><span class="o">,)</span> <span class="o">{</span>
+    <span class="c1">//获取客户唯一识别码,例如:mac+线程信息</span>
+    <span class="nc">String</span> <span class="n">custId</span> <span class="o">=</span> <span class="n">getCustId</span><span class="o">();</span>
+    <span class="nc">String</span> <span class="n">script</span> <span class="o">=</span> <span class="s">"if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"</span><span class="o">;</span>
+    <span class="nc">Object</span> <span class="n">result</span> <span class="o">=</span> <span class="n">jedis</span><span class="o">.</span><span class="na">eval</span><span class="o">(</span><span class="n">script</span><span class="o">,</span> <span class="nc">Collections</span><span class="o">.</span><span class="na">singletonList</span><span class="o">(</span><span class="n">lockKey</span><span class="o">),</span> <span class="nc">Collections</span><span class="o">.</span><span class="na">singletonList</span><span class="o">(</span><span class="n">custId</span><span class="o">));</span>
+
+    <span class="k">if</span> <span class="o">(</span><span class="no">RELEASE_SUCCESS</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="n">result</span><span class="o">))</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="kc">true</span><span class="o">;</span>
+    <span class="o">}</span>
+    <span class="k">return</span> <span class="kc">false</span><span class="o">;</span>
+<span class="o">}</span>
+
+<span class="cm">/**
+ * 获取锁信息
+ * @param lockKey 锁
+ * @return 是否重入锁
+ */</span>
+<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">checkReentrantLock</span><span class="o">(</span><span class="nc">String</span> <span class="n">lockKey</span><span class="o">){</span>
+    <span class="c1">//获取客户唯一识别码,例如:mac+线程信息</span>
+    <span class="nc">String</span> <span class="n">custId</span> <span class="o">=</span> <span class="n">getCustId</span><span class="o">();</span>
+
+    <span class="c1">//获取当前锁的客户唯一表示码</span>
+    <span class="nc">String</span> <span class="n">currentCustId</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">lockKey</span><span class="o">);</span>
+    <span class="k">if</span> <span class="o">(</span><span class="n">custId</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="n">currentCustId</span><span class="o">))</span> <span class="o">{</span>
+        <span class="k">return</span> <span class="kc">true</span><span class="o">;</span>
+    <span class="o">}</span>
+    <span class="k">return</span> <span class="kc">false</span><span class="o">;</span>
+<span class="o">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<p><strong>完整流程</strong></p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+</pre></td><td class="rouge-code"><pre><span class="kd">public</span> <span class="kt">void</span> <span class="nf">test</span><span class="o">()</span> <span class="o">{</span>
+    <span class="nc">String</span> <span class="n">lockKey</span> <span class="o">=</span> <span class="s">"lockKey"</span><span class="o">;</span>
+    <span class="c1">//判断是否重入锁</span>
+    <span class="k">if</span> <span class="o">(!</span><span class="n">checkReentrantLock</span><span class="o">(</span><span class="n">lockKey</span><span class="o">))</span> <span class="o">{</span>
+        <span class="c1">//非重入锁</span>
+        <span class="k">while</span> <span class="o">(!</span><span class="n">lock</span><span class="o">(</span><span class="n">lockKey</span><span class="o">))</span> <span class="o">{</span>
+            <span class="c1">//获取锁失败, 则阻塞至获取锁</span>
+            <span class="k">try</span><span class="o">{</span>
+                <span class="nc">Thread</span><span class="o">.</span><span class="na">sleep</span><span class="o">(</span><span class="mi">100</span><span class="o">)</span>
+            <span class="o">}</span> <span class="k">catch</span><span class="o">(</span><span class="nc">Exception</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+            <span class="o">}</span>
+        <span class="o">}</span>
+    <span class="o">}</span>
+    <span class="c1">//TODO 业务处理</span>
+
+    <span class="c1">//释放锁</span>
+    <span class="n">unlock</span><span class="o">(</span><span class="n">lockKey</span><span class="o">);</span>
+<span class="o">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="三-基于memcached的分布式锁">三. 基于memcached的分布式锁</h2>
+<p><img src="resources/D9D2C5A96C3994C89765A45BB7DA2D64.jpg" alt="分布式锁流程图-基于memcached分布式锁.jpg" /></p>
+
+<p>memcached的实现方式和redis类似, 使用的是命令add(key, value, expireDate),注:仅当缓存中不存在键时，才会添加成功</p>
+<ul>
+  <li>第一个为key，我们使用key来当锁，因为key是唯一的。</li>
+  <li>第二个为value，我们传的是custId，这里cust_id</li>
+  <li>第三个为expireDate, 设置一个过期时间,比如： new Date(1000*10)，则表示十秒之后从Memcached内存缓存中删除）。</li>
+</ul>
+
+<p><strong>代码示例</strong></p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+</pre></td><td class="rouge-code"><pre><span class="c1">// Redis客户端</span>
+<span class="kd">private</span> <span class="nc">MemCachedClient</span> <span class="n">memCachedClient</span><span class="o">;</span>
+
+<span class="cm">/**
+ * 尝试获取分布式锁
+ * @param lockKey 锁
+ * @param expireTime 超期时间
+ * @return 是否获取成功
+ */</span>
+<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">lock</span><span class="o">(</span><span class="nc">String</span> <span class="n">lockKey</span><span class="o">,</span> <span class="nc">Date</span> <span class="n">expireDate</span><span class="o">)</span> <span class="o">{</span>
+    <span class="c1">//获取客户唯一识别码,例如:mac+线程信息</span>
+    <span class="nc">String</span> <span class="n">custId</span> <span class="o">=</span> <span class="n">getCustId</span><span class="o">();</span>
+    <span class="nc">Boolean</span> <span class="n">result</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span>
+    <span class="k">try</span> <span class="o">{</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">memCachedClient</span><span class="o">.</span><span class="na">add</span><span class="o">(</span><span class="n">lockKey</span><span class="o">,</span> <span class="n">custId</span><span class="o">,</span><span class="n">expireDate</span><span class="o">);</span>
+    <span class="o">}</span> <span class="k">catch</span><span class="o">(</span><span class="nc">Excetion</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+    <span class="o">}</span>
+    <span class="k">return</span> <span class="n">result</span><span class="o">;</span>
+<span class="o">}</span>
+
+<span class="cm">/**
+ * 释放分布式锁
+ * @param lockKey 锁
+ * @param requestId 请求标识
+ * @return 是否释放成功
+ */</span>
+<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">unlock</span><span class="o">(</span><span class="nc">String</span> <span class="n">lockKey</span><span class="o">,)</span> <span class="o">{</span>
+    <span class="c1">//获取客户唯一识别码,例如:mac+线程信息</span>
+    <span class="c1">//获取客户唯一识别码,例如:mac+线程信息</span>
+    <span class="nc">String</span> <span class="n">custId</span> <span class="o">=</span> <span class="n">getCustId</span><span class="o">();</span>
+    <span class="nc">Boolean</span> <span class="n">result</span> <span class="o">=</span> <span class="kc">false</span><span class="o">;</span>
+    <span class="k">try</span> <span class="o">{</span>
+        <span class="nc">String</span> <span class="n">currentCustId</span> <span class="o">=</span> <span class="n">memCachedClient</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">lockKey</span><span class="o">);</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">custId</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="n">currentCustId</span><span class="o">))</span> <span class="o">{</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">memCachedClient</span><span class="o">.</span><span class="na">delete</span><span class="o">(</span><span class="n">lockKey</span><span class="o">,</span> <span class="n">custId</span><span class="o">,</span><span class="n">expireDate</span><span class="o">);</span>
+        <span class="o">}</span>
+    <span class="o">}</span> <span class="k">catch</span><span class="o">(</span><span class="nc">Excetion</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+    <span class="o">}</span>
+    <span class="k">return</span> <span class="n">result</span><span class="o">;</span>
+<span class="o">}</span>
+
+<span class="cm">/**
+ * 获取锁信息
+ * @param lockKey 锁
+ * @return 是否重入锁
+ */</span>
+<span class="kd">public</span> <span class="kt">boolean</span> <span class="nf">checkReentrantLock</span><span class="o">(</span><span class="nc">String</span> <span class="n">lockKey</span><span class="o">){</span>
+    <span class="c1">//获取客户唯一识别码,例如:mac+线程信息</span>
+    <span class="nc">String</span> <span class="n">custId</span> <span class="o">=</span> <span class="n">getCustId</span><span class="o">();</span>
+    <span class="c1">//获取当前锁的客户唯一表示码</span>
+    <span class="k">try</span> <span class="o">{</span>
+         <span class="nc">String</span> <span class="n">currentCustId</span> <span class="o">=</span> <span class="n">memCachedClient</span><span class="o">.</span><span class="na">get</span><span class="o">(</span><span class="n">lockKey</span><span class="o">);</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">custId</span><span class="o">.</span><span class="na">equals</span><span class="o">(</span><span class="n">currentCustId</span><span class="o">))</span> <span class="o">{</span>
+            <span class="k">return</span> <span class="kc">true</span><span class="o">;</span>
+        <span class="o">}</span>
+    <span class="o">}</span> <span class="k">catch</span><span class="o">(</span><span class="nc">Excetion</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+    <span class="o">}</span>
+
+    <span class="k">return</span> <span class="kc">false</span><span class="o">;</span>
+<span class="o">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<p><strong>完整流程</strong></p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+</pre></td><td class="rouge-code"><pre><span class="kd">public</span> <span class="kt">void</span> <span class="nf">test</span><span class="o">()</span> <span class="o">{</span>
+    <span class="nc">String</span> <span class="n">lockKey</span> <span class="o">=</span> <span class="s">"lockKey"</span><span class="o">;</span>
+    <span class="c1">//判断是否重入锁</span>
+    <span class="k">if</span> <span class="o">(!</span><span class="n">checkReentrantLock</span><span class="o">(</span><span class="n">lockKey</span><span class="o">))</span> <span class="o">{</span>
+        <span class="c1">//非重入锁</span>
+        <span class="k">while</span> <span class="o">(!</span><span class="n">lock</span><span class="o">(</span><span class="n">lockKey</span><span class="o">))</span> <span class="o">{</span>
+            <span class="c1">//获取锁失败, 则阻塞至获取锁</span>
+            <span class="k">try</span><span class="o">{</span>
+                <span class="nc">Thread</span><span class="o">.</span><span class="na">sleep</span><span class="o">(</span><span class="mi">100</span><span class="o">)</span>
+            <span class="o">}</span> <span class="k">catch</span><span class="o">(</span><span class="nc">Exception</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+            <span class="o">}</span>
+        <span class="o">}</span>
+    <span class="o">}</span>
+    <span class="c1">//TODO 业务处理</span>
+
+    <span class="c1">//释放锁</span>
+    <span class="n">unlock</span><span class="o">(</span><span class="n">lockKey</span><span class="o">);</span>
+<span class="o">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+
+<h2 id="四-基于zookeeper的分布式锁">四. 基于zookeeper的分布式锁</h2>
+<p><img src="resources/5C6C92F2A132891D116D3D2665553839.jpg" alt="分布式锁流程图-基于zookeeper分布式锁.jpg" /></p>
+<blockquote>
+  <p>基于zookeeper临时有序节点可以实现的分布式锁。
+大致思想即为：每个客户端对某个方法加锁时，在zookeeper上的与该方法对应的指定节点的目录下，生成一个唯一的瞬时有序节点。 判断是否获取锁的方式很简单，只需要判断有序节点中序号最小的一个。 当释放锁的时候，只需将这个瞬时节点删除即可。同时，其可以避免服务宕机导致的锁无法释放，而产生的死锁问题。</p>
+</blockquote>
+
+<p>可以直接使用zookeeper第三方库Curator客户端，这个客户端中封装了一个可重入的锁服务。</p>
+
+<p><strong>完整流程</strong></p>
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><table class="rouge-table"><tbody><tr><td class="rouge-gutter gl"><pre class="lineno">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+</pre></td><td class="rouge-code"><pre><span class="kd">public</span> <span class="kt">void</span> <span class="nf">test</span><span class="o">()</span> <span class="o">{</span>
+    <span class="c1">//Curator提供的InterProcessMutex是分布式锁的实现。通过acquire获得锁，并提供超时机制，release方法用于释放锁。</span>
+    <span class="nc">InterProcessMutex</span> <span class="n">lock</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">InterProcessMutex</span><span class="o">(</span><span class="n">client</span><span class="o">,</span> <span class="no">ZK_LOCK_PATH</span><span class="o">);</span>
+    <span class="k">try</span> <span class="o">{</span>
+        <span class="c1">//获取锁</span>
+        <span class="k">if</span> <span class="o">(</span><span class="n">lock</span><span class="o">.</span><span class="na">acquire</span><span class="o">(</span><span class="mi">10</span> <span class="o">*</span> <span class="mi">1000</span><span class="o">,</span> <span class="nc">TimeUnit</span><span class="o">.</span><span class="na">SECONDS</span><span class="o">))</span> <span class="o">{</span>
+            <span class="c1">//TODO 业务处理</span>
+        <span class="o">}</span>
+    <span class="o">}</span> <span class="k">catch</span> <span class="o">(</span><span class="nc">Exception</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+        <span class="n">e</span><span class="o">.</span><span class="na">printStackTrace</span><span class="o">();</span>
+    <span class="o">}</span> <span class="k">finally</span> <span class="o">{</span>
+        <span class="k">try</span> <span class="o">{</span>
+            <span class="c1">//释放锁</span>
+            <span class="n">lock</span><span class="o">.</span><span class="na">release</span><span class="o">();</span>
+        <span class="o">}</span> <span class="k">catch</span> <span class="o">(</span><span class="nc">Exception</span> <span class="n">e</span><span class="o">)</span> <span class="o">{</span>
+            <span class="n">e</span><span class="o">.</span><span class="na">printStackTrace</span><span class="o">();</span>
+        <span class="o">}</span>
+    <span class="o">}</span>
+
+<span class="o">}</span>
+</pre></td></tr></tbody></table></code></pre></div></div>
+:ET
