@@ -1,8 +1,10 @@
 ---
-title: "SpringBoot学习笔记(-) 从一个简单的应用程序开始 (未完成)"
+title: SpringBoot学习笔记(-) 从一个简单的应用程序开始 (未完成)
 date: 2019-09-27
 categories: [开发基础]
 tags: [SpringBoot, Java]
+seo:
+  date_modified: 2020-03-12 12:37:36 +0800
 ---
 
 ## 概述
