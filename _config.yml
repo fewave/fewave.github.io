@@ -62,7 +62,7 @@ google_analytics:
   id: 'UA-160644077-1'
   # The Google Analytics pageviews switch.
   # DO NOT enable it unless you know how to deploy the Google Analytics superProxy.
-  pv: true
+  pv: false
   # superProxy baseURL and URL, only valid when `google_analytics.pv` is set to 'true'
   proxy_baseurl: ''
   proxy_url: ''
